@@ -51,7 +51,6 @@ export function createMusicBrowser(player, accessToken, initialDeviceId) {
       
       <div class="content-area">
         <div class="tab-content recent active">
-          <div class="loading-spinner">Loading...</div>
           <div class="track-list"></div>
         </div>
         
@@ -60,7 +59,6 @@ export function createMusicBrowser(player, accessToken, initialDeviceId) {
         </div>
         
         <div class="tab-content recommended">
-          <div class="loading-spinner">Loading recommendations...</div>
           <div class="track-list"></div>
         </div>
       </div>
@@ -199,6 +197,9 @@ export function createMusicBrowser(player, accessToken, initialDeviceId) {
     try {
       // Search for tracks, artists, and albums
       const results = await search(query, 'track,album,artist', accessToken, 30);
+      
+      // Clear loading spinner - explicitly clear it to make sure it's gone
+      searchTracksList.innerHTML = '';
       
       // Process and display results
       displaySearchResults(results);
@@ -356,6 +357,9 @@ export function createMusicBrowser(player, accessToken, initialDeviceId) {
    */
   async function loadRecentTracks() {
     try {
+      // Show loading spinner
+      recentTracksList.innerHTML = '<div class="loading-spinner">Loading...</div>';
+      
       const recentTracks = await getRecentlyPlayed(accessToken, 20);
       
       if (!recentTracks || !recentTracks.items || recentTracks.items.length === 0) {
@@ -374,7 +378,7 @@ export function createMusicBrowser(player, accessToken, initialDeviceId) {
         }
       });
       
-      // Clear loading spinner
+      // Clear loading spinner - explicitly clear it to make sure it's gone
       recentTracksList.innerHTML = '';
       
       // Create and append track list
@@ -422,6 +426,9 @@ export function createMusicBrowser(player, accessToken, initialDeviceId) {
       
       const tracksData = await tracksResponse.json();
       
+      // Clear loading spinner - explicitly clear it to make sure it's gone
+      searchTracksList.innerHTML = '';
+      
       // Display tracks
       searchTracksList.innerHTML = `<h3>Album Tracks</h3>`;
       const trackList = createTrackList(tracksData.tracks);
@@ -464,6 +471,9 @@ export function createMusicBrowser(player, accessToken, initialDeviceId) {
       }
       
       const data = await response.json();
+      
+      // Clear loading spinner - explicitly clear it to make sure it's gone
+      searchTracksList.innerHTML = '';
       
       // Display tracks
       searchTracksList.innerHTML = `<h3>Top Tracks</h3>`;
@@ -522,6 +532,7 @@ export function createMusicBrowser(player, accessToken, initialDeviceId) {
    */
   async function loadRecommendedTracks() {
     try {
+      // Show loading spinner
       recommendedTracksList.innerHTML = '<div class="loading-spinner">Loading recommendations...</div>';
       
       // First get recent tracks to use as seeds
@@ -551,8 +562,10 @@ export function createMusicBrowser(player, accessToken, initialDeviceId) {
       
       const data = await response.json();
       
-      // Display recommended tracks
+      // Clear loading spinner - explicitly clear it to make sure it's gone
       recommendedTracksList.innerHTML = '';
+      
+      // Create and append track list
       const trackList = createTrackList(data.tracks);
       recommendedTracksList.appendChild(trackList);
     } catch (error) {
@@ -660,6 +673,12 @@ export function createMusicBrowser(player, accessToken, initialDeviceId) {
     if (!player) return;
     
     try {
+      // Give visual feedback
+      playPauseButton.classList.add('control-active');
+      setTimeout(() => {
+        playPauseButton.classList.remove('control-active');
+      }, 200);
+      
       if (isPlaying) {
         await player.pause();
       } else {
@@ -680,6 +699,12 @@ export function createMusicBrowser(player, accessToken, initialDeviceId) {
     if (!player) return;
     
     try {
+      // Give visual feedback
+      prevButton.classList.add('control-active');
+      setTimeout(() => {
+        prevButton.classList.remove('control-active');
+      }, 200);
+      
       await player.previousTrack();
     } catch (error) {
       console.error('Error playing previous track:', error);
@@ -694,6 +719,12 @@ export function createMusicBrowser(player, accessToken, initialDeviceId) {
     if (!player) return;
     
     try {
+      // Give visual feedback
+      nextButton.classList.add('control-active');
+      setTimeout(() => {
+        nextButton.classList.remove('control-active');
+      }, 200);
+      
       await player.nextTrack();
     } catch (error) {
       console.error('Error playing next track:', error);

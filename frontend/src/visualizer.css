@@ -32,10 +32,13 @@
   font-size: 14px;
   cursor: pointer;
   transition: all 0.2s ease;
+  min-width: 80px !important;
+  font-weight: 500 !important;
 }
 
 .viz-button:hover {
   background-color: rgba(29, 185, 84, 0.3);
+  transform: translateY(-2px) !important;
 }
 
 .viz-button.active {
@@ -59,6 +62,8 @@
   max-width: 400px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
   animation: fadeIn 0.5s ease;
+  z-index: 100 !important;
+  opacity: 1 !important;
 }
 
 .track-container {
@@ -119,11 +124,39 @@
 }
 
 .control-button:hover {
-  background-color: rgba(29, 185, 84, 0.3);
+  background-color: rgba(29, 185, 84, 0.3) !important;
+  transform: translateY(-2px) !important;
+}
+
+.control-button:focus {
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(29, 185, 84, 0.5) !important;
 }
 
 .control-button.play-pause {
-  background-color: #1db954;
+  background-color: #1db954 !important;
+  box-shadow: 0 2px 8px rgba(29, 185, 84, 0.3) !important;
+}
+
+.control-button.play-pause:hover {
+  background-color: #1ed760 !important;
+  box-shadow: 0 4px 12px rgba(29, 185, 84, 0.5) !important;
+}
+
+/* Control button active state */
+.control-button.control-active {
+  transform: scale(0.9) !important;
+  background-color: rgba(29, 185, 84, 0.5) !important;
+  transition: transform 0.1s ease, background-color 0.1s ease !important;
+}
+
+/* Make sure the buttons are easy to tap on mobile */
+@media (max-width: 768px) {
+  .control-button {
+    min-width: 36px !important;
+    min-height: 36px !important;
+    padding: 8px !important;
+  }
 }
 
 /* Error Overlay */
@@ -315,6 +348,42 @@
   background-color: rgba(255, 255, 255, 0.1);
 }
 
+/* Improve loading spinner appearance and hide it properly */
+.loading-spinner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  color: #aaa;
+  animation: fadein 0.3s ease-in-out;
+}
+
+@keyframes fadein {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Add transitioning to all buttons for smoother interactions */
+button {
+  transition: transform 0.2s ease, background-color 0.2s ease, color 0.2s ease !important;
+}
+
+/* Improve focus visibility for accessibility */
+button:focus-visible {
+  outline: 2px solid #1db954 !important;
+  outline-offset: 2px !important;
+}
+
+/* Better visual feedback for button clicks */
+button:active {
+  transform: scale(0.95) !important;
+}
+
+/* Make sure loading spinners are actually hidden when content loads */
+.loading-spinner.hidden {
+  display: none !important;
+}
+
 /* Messages */
 .message-notification {
   position: fixed !important;
@@ -328,7 +397,7 @@
   border-radius: 8px !important;
   border-left: 4px solid #1db954 !important;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
-  z-index: 1000 !important;
+  z-index: 2000 !important;
   opacity: 0 !important;
   transform: translateY(20px) !important;
   transition: all 0.3s ease !important;

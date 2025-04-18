@@ -1,5 +1,7 @@
 // src/ui/TrackInfo.js
-import { togglePlayPause, skipToNext, skipToPrevious } from '../spotify/spotifyPlayer.js';
+// Fixed version with properly working playback controls
+
+import { togglePlayPause, skipToNext, skipToPrevious, getPlayer } from '../spotify/spotifyPlayer.js';
 
 let lastTrackId = null;
 let isPlaying = true;
@@ -83,13 +85,27 @@ export function renderTrackInfo(trackData) {
 }
 
 /**
+ * Check if the Spotify player is ready
+ * @returns {boolean} - Player readiness state
+ */
+function isPlayerReady() {
+  const player = getPlayer();
+  return player !== null;
+}
+
+/**
  * Set up event listeners for playback control buttons
  */
 function setupControlEvents() {
   // Play/Pause button
   const playPauseButton = document.querySelector('.control-button.play-pause');
   if (playPauseButton) {
-    playPauseButton.addEventListener('click', () => {
+    // Make sure we remove any existing event listeners first by cloning the button
+    const newPlayPauseButton = playPauseButton.cloneNode(true);
+    playPauseButton.parentNode.replaceChild(newPlayPauseButton, playPauseButton);
+    
+    newPlayPauseButton.addEventListener('click', () => {
+      console.log('Play/pause button clicked');
       togglePlayback();
     });
   }
@@ -97,7 +113,12 @@ function setupControlEvents() {
   // Previous track button
   const prevButton = document.querySelector('.control-button.previous');
   if (prevButton) {
-    prevButton.addEventListener('click', () => {
+    // Make sure we remove any existing event listeners first by cloning the button
+    const newPrevButton = prevButton.cloneNode(true);
+    prevButton.parentNode.replaceChild(newPrevButton, prevButton);
+    
+    newPrevButton.addEventListener('click', () => {
+      console.log('Previous button clicked');
       playPreviousTrack();
     });
   }
@@ -105,7 +126,12 @@ function setupControlEvents() {
   // Next track button
   const nextButton = document.querySelector('.control-button.next');
   if (nextButton) {
-    nextButton.addEventListener('click', () => {
+    // Make sure we remove any existing event listeners first by cloning the button
+    const newNextButton = nextButton.cloneNode(true);
+    nextButton.parentNode.replaceChild(newNextButton, nextButton);
+    
+    newNextButton.addEventListener('click', () => {
+      console.log('Next button clicked');
       playNextTrack();
     });
   }
@@ -127,16 +153,30 @@ function updatePlayPauseButton() {
  */
 async function togglePlayback() {
   try {
+    console.log('Toggle playback called, current state:', isPlaying ? 'playing' : 'paused');
+    
+    // First, check if player is ready
+    if (!isPlayerReady()) {
+      console.warn('Player not ready yet, showing error message');
+      showPlaybackError('Playback controls not ready yet. Please wait a moment and try again.');
+      return;
+    }
+    
+    // Give visual feedback for clicks
+    const button = document.querySelector('.control-button.play-pause');
+    if (button) {
+      button.classList.add('control-active');
+      setTimeout(() => {
+        button.classList.remove('control-active');
+      }, 200);
+    }
+    
     // First, update UI to be responsive
     isPlaying = !isPlaying;
     updatePlayPauseButton();
     
-    // Then call the player SDK function
-    const success = await togglePlayPause();
-    
-    // Update UI based on actual result
-    isPlaying = success;
-    updatePlayPauseButton();
+    // Then call the player SDK function 
+    await togglePlayPause();
   } catch (error) {
     console.error('Error toggling playback:', error);
     // Revert UI if there was an error
@@ -151,6 +191,24 @@ async function togglePlayback() {
  */
 async function playNextTrack() {
   try {
+    console.log('Next track called');
+    
+    // First, check if player is ready
+    if (!isPlayerReady()) {
+      console.warn('Player not ready yet, showing error message');
+      showPlaybackError('Playback controls not ready yet. Please wait a moment and try again.');
+      return;
+    }
+    
+    // Give visual feedback for clicks
+    const button = document.querySelector('.control-button.next');
+    if (button) {
+      button.classList.add('control-active');
+      setTimeout(() => {
+        button.classList.remove('control-active');
+      }, 200);
+    }
+    
     // Call the player SDK function
     await skipToNext();
     
@@ -168,6 +226,24 @@ async function playNextTrack() {
  */
 async function playPreviousTrack() {
   try {
+    console.log('Previous track called');
+    
+    // First, check if player is ready
+    if (!isPlayerReady()) {
+      console.warn('Player not ready yet, showing error message');
+      showPlaybackError('Playback controls not ready yet. Please wait a moment and try again.');
+      return;
+    }
+    
+    // Give visual feedback for clicks
+    const button = document.querySelector('.control-button.previous');
+    if (button) {
+      button.classList.add('control-active');
+      setTimeout(() => {
+        button.classList.remove('control-active');
+      }, 200);
+    }
+    
     // Call the player SDK function
     await skipToPrevious();
     
@@ -200,7 +276,9 @@ function showPlaybackError(message) {
   setTimeout(() => {
     errorDiv.classList.remove('show');
     setTimeout(() => {
-      document.body.removeChild(errorDiv);
+      if (errorDiv.parentNode) {
+        errorDiv.parentNode.removeChild(errorDiv);
+      }
     }, 300);
   }, 5000);
 }

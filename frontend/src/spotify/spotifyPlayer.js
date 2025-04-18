@@ -1,5 +1,5 @@
 // src/spotify/spotifyPlayer.js
-// Implements Spotify Web Playback SDK functionality
+// Implements Spotify Web Playback SDK functionality with improved error handling
 
 let player = null;
 let deviceId = null;
@@ -9,7 +9,6 @@ let playerInitResolver = null;
 /**
  * Initialize the Spotify Player SDK
  * This function is called when the SDK script is loaded
- * The onSpotifyWebPlaybackSDKReady function now needs to be defined globally in index.html
  */
 export function setupGlobalSpotifyCallback() {
   // Check if callback is already defined
@@ -67,6 +66,9 @@ export async function setupSpotifyPlayer(accessToken) {
     player.addListener('ready', ({ device_id }) => {
       console.log('Spotify Player ready with Device ID:', device_id);
       deviceId = device_id;
+      
+      // Store globally for other components to access
+      window.spotifyDeviceId = device_id;
     });
 
     player.addListener('not_ready', ({ device_id }) => {
@@ -92,9 +94,15 @@ export async function setupSpotifyPlayer(accessToken) {
     });
 
     // Connect to the player
-    const connected = await player.connect();
-    if (!connected) {
-      throw new Error('Failed to connect to Spotify Player');
+    try {
+      const connected = await player.connect();
+      if (!connected) {
+        throw new Error('Failed to connect to Spotify Player');
+      }
+      console.log('Successfully connected to Spotify player');
+    } catch (error) {
+      console.error('Error connecting to Spotify player:', error);
+      throw error;
     }
   }
 
@@ -150,19 +158,27 @@ export async function playTrack(uri, accessToken) {
  */
 export async function togglePlayPause() {
   if (!player) {
-    throw new Error('Player not initialized');
+    console.error('Player not initialized in togglePlayPause');
+    await initializePlayerIfNeeded();
+    if (!player) {
+      throw new Error('Player could not be initialized');
+    }
   }
 
-  const isPaused = await player.getCurrentState().then(state => {
-    return !state || state.paused;
-  });
+  try {
+    const state = await player.getCurrentState();
+    const isPaused = !state || state.paused;
 
-  if (isPaused) {
-    await player.resume();
-    return true;
-  } else {
-    await player.pause();
-    return false;
+    if (isPaused) {
+      await player.resume();
+      return true;
+    } else {
+      await player.pause();
+      return false;
+    }
+  } catch (error) {
+    console.error('Error in togglePlayPause:', error);
+    throw error;
   }
 }
 
@@ -172,10 +188,21 @@ export async function togglePlayPause() {
  */
 export async function skipToNext() {
   if (!player) {
-    throw new Error('Player not initialized');
+    console.error('Player not initialized in skipToNext');
+    await initializePlayerIfNeeded();
+    if (!player) {
+      throw new Error('Player could not be initialized');
+    }
   }
   
-  return player.nextTrack();
+  try {
+    const result = await player.nextTrack();
+    console.log('Next track result:', result);
+    return result;
+  } catch (error) {
+    console.error('Error in skipToNext:', error);
+    throw error;
+  }
 }
 
 /**
@@ -184,8 +211,41 @@ export async function skipToNext() {
  */
 export async function skipToPrevious() {
   if (!player) {
-    throw new Error('Player not initialized');
+    console.error('Player not initialized in skipToPrevious');
+    await initializePlayerIfNeeded();
+    if (!player) {
+      throw new Error('Player could not be initialized');
+    }
   }
   
-  return player.previousTrack();
+  try {
+    const result = await player.previousTrack();
+    console.log('Previous track result:', result);
+    return result;
+  } catch (error) {
+    console.error('Error in skipToPrevious:', error);
+    throw error;
+  }
+}
+
+/**
+ * Try to initialize the player if it's not already initialized
+ * @returns {Promise<void>}
+ */
+async function initializePlayerIfNeeded() {
+  if (player) return;
+  
+  try {
+    // Try to get access token from local storage
+    const accessToken = localStorage.getItem('spotify_access_token');
+    if (!accessToken) {
+      console.error('No access token available to initialize player');
+      return;
+    }
+    
+    console.log('Attempting to initialize player with stored access token');
+    await setupSpotifyPlayer(accessToken);
+  } catch (error) {
+    console.error('Failed to initialize player:', error);
+  }
 }
