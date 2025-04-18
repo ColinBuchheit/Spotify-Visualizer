@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "gsap": "^3.12.2",
+    "postprocessing": "^6.33.0",
+    "troika-three-text": "^0.48.0"
+  }
+}

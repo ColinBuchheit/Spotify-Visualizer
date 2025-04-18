@@ -1,0 +1,80 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependencies
+node_modules/
+/.pnp
+.pnp.js
+
+# Testing
+/coverage
+*.lcov
+
+# Production builds
+/dist
+/dist-ssr
+/build
+*.local
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+.directory
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Audio files (if you don't want to track large audio samples)
+# Uncomment if needed
+# *.mp3
+# *.wav
+# *.ogg
+
+# Large media files (if applicable)
+# *.mp4
+# *.webm
+
+# Package manager specific
+.npm/
+.yarn/
+yarn-error.log
+.yarnrc
+.yarn-integrity
+
+# Misc
+.DS_Store
+.vercel
+.next
+.nuxt
+.output
+
+.env
+.env
+
+.vscode/

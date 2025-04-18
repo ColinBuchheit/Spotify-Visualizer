@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Spotify 3D Visualizer</title>
+    <meta name="description" content="Experience your Spotify music in 3D with real-time WebGL visualizations">
+    
+    <script>
+      // Define the Spotify callback function before loading the SDK
+      window.onSpotifyWebPlaybackSDKReady = function() {
+        console.log('Spotify Web Playback SDK is ready');
+        // This will be used by the setupSpotifyPlayer function
+        if (window.spotifySDKCallback) {
+          window.spotifySDKCallback();
+        }
+      };
+    </script>
+    <script src="https://sdk.scdn.co/spotify-player.js"></script>
+    
+    <!-- Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+
+    <!-- Base Styling -->
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        background-color: #121212;
+        overflow: hidden;
+        font-family: 'Montserrat', sans-serif;
+        color: #fff;
+        height: 100vh;
+        width: 100vw;
+      }
+
+      #app {
+        width: 100%;
+        height: 100%;
+        position: relative;
+        display: none; /* Hidden until authenticated */
+      }
+
+      #login-screen {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, #121212 0%, #1db954 100%);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        color: white;
+        z-index: 10;
+      }
+
+      .logo-container {
+        margin-bottom: 40px;
+        text-align: center;
+      }
+
+      .logo-container h1 {
+        font-size: 3rem;
+        margin-bottom: 10px;
+        font-weight: 700;
+      }
+
+      .logo-container p {
+        font-size: 1.2rem;
+        opacity: 0.8;
+        max-width: 600px;
+        line-height: 1.5;
+      }
+
+      #connect-button {
+        font-size: 1.2rem;
+        padding: 15px 30px;
+        background-color: #1db954;
+        border: none;
+        border-radius: 30px;
+        color: white;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-weight: 600;
+        box-shadow: 0 4px 12px rgba(29, 185, 84, 0.5);
+      }
+
+      #connect-button:hover {
+        background-color: #1ed760;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(29, 185, 84, 0.6);
+      }
+
+      .features {
+        display: flex;
+        justify-content: center;
+        margin: 50px 0;
+        max-width: 900px;
+        flex-wrap: wrap;
+      }
+
+      .feature {
+        background-color: rgba(0, 0, 0, 0.2);
+        padding: 20px;
+        margin: 10px;
+        border-radius: 10px;
+        width: 250px;
+        text-align: center;
+      }
+
+      .feature h3 {
+        margin-bottom: 10px;
+        color: #1db954;
+      }
+
+      .feature p {
+        font-size: 0.9rem;
+        opacity: 0.8;
+      }
+
+      .footer {
+        position: absolute;
+        bottom: 20px;
+        font-size: 0.8rem;
+        opacity: 0.6;
+      }
+
+      /* Error state */
+      .error-message {
+        background-color: rgba(255, 0, 0, 0.2);
+        color: #ff5555;
+        padding: 15px 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        display: none;
+      }
+      
+      /* Animation for login screen */
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      
+      .logo-container, #connect-button, .features {
+        animation: fadeIn 0.8s ease-out forwards;
+      }
+      
+      .logo-container { animation-delay: 0.1s; }
+      #connect-button { animation-delay: 0.3s; }
+      .features { animation-delay: 0.5s; }
+      
+      /* Responsive styling */
+      @media (max-width: 768px) {
+        .logo-container h1 {
+          font-size: 2.2rem;
+        }
+        
+        .logo-container p {
+          font-size: 1rem;
+          padding: 0 20px;
+        }
+        
+        .features {
+          flex-direction: column;
+          align-items: center;
+        }
+        
+        .feature {
+          width: 90%;
+          max-width: 300px;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <!-- Login Screen -->
+    <div id="login-screen">
+      <div class="logo-container">
+        <h1>Spotify 3D Visualizer</h1>
+        <p>Experience your music in a new dimension with real-time 3D visualizations powered by WebGL</p>
+      </div>
+      
+      <div id="error-message" class="error-message"></div>
+      
+      <button id="connect-button">Connect to Spotify</button>
+      
+      <div class="features">
+        <div class="feature">
+          <h3>Multiple Visualizations</h3>
+          <p>Choose from different visualization styles to match your music's mood</p>
+        </div>
+        <div class="feature">
+          <h3>Real-time Sync</h3>
+          <p>Watch as visuals react dynamically to your music's energy and rhythm</p>
+        </div>
+        <div class="feature">
+          <h3>Spotify Integration</h3>
+          <p>Control your playback directly from the visualizer interface</p>
+        </div>
+      </div>
+      
+      <div class="footer">
+        &copy; 2025 Spotify 3D Visualizer. Requires Spotify Premium.
+      </div>
+    </div>
+
+    <!-- Main App Container -->
+    <div id="app"></div>
+
+    <!-- Main Entry Script -->
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,432 @@
+/* Visualization Controls */
+#visualization-controls {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+}
+
+/* Make sure visualization controls and volume control don't overlap on mobile */
+@media (max-width: 768px) {
+  #visualization-controls {
+    bottom: 80px;
+  }
+}
+
+.viz-buttons {
+  display: flex;
+  gap: 10px;
+  background-color: rgba(0, 0, 0, 0.6);
+  padding: 10px 15px;
+  border-radius: 30px;
+  backdrop-filter: blur(10px);
+}
+
+.viz-button {
+  background-color: transparent;
+  border: 2px solid #1db954;
+  border-radius: 20px;
+  color: white;
+  padding: 8px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.viz-button:hover {
+  background-color: rgba(29, 185, 84, 0.3);
+}
+
+.viz-button.active {
+  background-color: #1db954;
+}
+
+/* Track Info Display */
+#track-info {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  color: white;
+  z-index: 100;
+  background-color: rgba(0, 0, 0, 0.6);
+  padding: 15px;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  backdrop-filter: blur(10px);
+  max-width: 400px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  animation: fadeIn 0.5s ease;
+}
+
+.track-container {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+}
+
+.track-container img {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.track-container .text {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.track-container .title {
+  font-weight: bold;
+  font-size: 18px;
+  color: #fff;
+}
+
+.track-container .artist {
+  font-size: 16px;
+  color: #1db954;
+}
+
+.track-container .album {
+  font-size: 14px;
+  color: #aaa;
+}
+
+.playback-controls {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 5px;
+}
+
+.control-button {
+  background-color: transparent;
+  border: 2px solid #1db954;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.control-button:hover {
+  background-color: rgba(29, 185, 84, 0.3);
+}
+
+.control-button.play-pause {
+  background-color: #1db954;
+}
+
+/* Error Overlay */
+#error-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.8);
+  display: none;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.error-container {
+  background-color: #282828;
+  padding: 30px;
+  border-radius: 10px;
+  text-align: center;
+  max-width: 90%;
+  width: 400px;
+  color: white;
+}
+
+.error-container h2 {
+  color: #e61e32;
+  margin-top: 0;
+  margin-bottom: 15px;
+}
+
+.error-container p {
+  margin-bottom: 20px;
+}
+
+.error-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.error-container button {
+  background-color: #1db954;
+  border: none;
+  border-radius: 30px;
+  color: white;
+  padding: 10px 20px;
+  margin: 5px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.2s ease;
+}
+
+.error-container button:hover {
+  background-color: #1ed760;
+  transform: scale(1.05);
+}
+
+/* Re-authentication Overlay */
+.reauth-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+
+.reauth-container {
+  background-color: #282828;
+  padding: 30px;
+  border-radius: 10px;
+  text-align: center;
+  max-width: 90%;
+  width: 400px;
+  color: white;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+  border-left: 4px solid #1db954;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.reauth-container h2 {
+  color: #1db954;
+  margin-top: 0;
+  margin-bottom: 15px;
+}
+
+.reauth-container p {
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+
+.reauth-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  margin-top: 20px;
+}
+
+#reauth-button {
+  background-color: #1db954;
+  border: none;
+  border-radius: 30px;
+  color: white;
+  padding: 12px 24px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: bold;
+  transition: all 0.2s ease;
+}
+
+#reauth-button:hover {
+  background-color: #1ed760;
+  transform: scale(1.05);
+}
+
+/* Audio analyzer controls */
+.audio-analysis-controls {
+  margin-top: 10px;
+  text-align: center;
+}
+
+.audio-analysis-toggle {
+  background-color: rgba(29, 185, 84, 0.5);
+  border: 2px solid #1db954;
+  border-radius: 20px;
+  color: white;
+  padding: 8px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-block;
+}
+
+.audio-analysis-toggle:hover {
+  background-color: rgba(29, 185, 84, 0.7);
+  transform: translateY(-2px);
+}
+
+.audio-analysis-toggle.active {
+  background-color: #1db954;
+}
+
+/* Beat detection visual indicator */
+.beat-indicator {
+  position: absolute;
+  top: 20px;
+  right: 80px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: #1db954;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+
+.beat-indicator.active {
+  opacity: 1;
+}
+
+#reauth-cancel {
+  background-color: transparent;
+  border: 2px solid #6c6c6c;
+  border-radius: 30px;
+  color: white;
+  padding: 12px 24px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.2s ease;
+}
+
+#reauth-cancel:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Messages */
+.message-notification {
+  position: fixed !important;
+  top: auto !important;
+  left: auto !important;
+  bottom: 30px !important;
+  right: 30px !important;
+  background-color: #282828 !important;
+  color: white !important;
+  padding: 15px 20px !important;
+  border-radius: 8px !important;
+  border-left: 4px solid #1db954 !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
+  z-index: 1000 !important;
+  opacity: 0 !important;
+  transform: translateY(20px) !important;
+  transition: all 0.3s ease !important;
+  max-width: 350px !important;
+  width: auto !important;
+  display: block !important;
+  height: auto !important; 
+  overflow: visible !important;
+}
+
+.message-notification.show {
+  opacity: 1 !important;
+  transform: translateY(0) !important;
+}
+
+/* Toast Message */
+.toast-message {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  background: rgba(40, 40, 40, 0.9);
+  color: white;
+  padding: 12px 20px;
+  border-radius: 8px;
+  z-index: 1000;
+  font-size: 14px;
+  transition: transform 0.3s, opacity 0.3s;
+  transform: translateY(20px);
+  opacity: 0;
+  max-width: 350px;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  border-left: 4px solid #1db954;
+}
+
+.toast-message.visible {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+  #track-info {
+    left: 10px;
+    right: 10px;
+    max-width: calc(100% - 20px);
+  }
+  
+  .track-container img {
+    width: 60px;
+    height: 60px;
+  }
+  
+  .control-button {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .viz-button {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  .reauth-container,
+  .error-container {
+    width: 90%;
+    padding: 20px;
+  }
+}
+
+/* Loading Spinner */
+.loading-spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 50px;
+  height: 10px;
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: #1db954;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
