@@ -1,22 +1,26 @@
 // src/ui/TrackInfo.js
-// Fixed version with properly working playback controls
+// Track information display component using centralized state management
 
-import { togglePlayPause, skipToNext, skipToPrevious, getPlayer } from '../spotify/spotifyPlayer.js';
+import { 
+  togglePlayPause, 
+  skipToNext, 
+  skipToPrevious, 
+  getIsPlaying,
+  getCurrentTrack,
+  addEventListener,
+  removeEventListener
+} from '../spotify/spotifyPlayer.js';
 
-let lastTrackId = null;
-let isPlaying = true;
-let accessToken = null;
+// Tracking event listeners
+let stateChangeListener = null;
+let trackChangeListener = null;
+let errorListener = null;
 
 /**
  * Render track information and playback controls
  * @param {Object} trackData - Track data from Spotify API
  */
 export function renderTrackInfo(trackData) {
-  // Store access token if not already stored
-  if (!accessToken) {
-    accessToken = localStorage.getItem('spotify_access_token');
-  }
-
   // Remove existing track info if present
   const existingInfo = document.getElementById('track-info');
   if (existingInfo) {
@@ -30,13 +34,9 @@ export function renderTrackInfo(trackData) {
   const albumImage = trackData.item?.album?.images?.[0]?.url || '';
   const trackId = trackData.item?.id || '';
   
-  // Update play state if available
-  if (trackData.is_playing !== undefined) {
-    isPlaying = trackData.is_playing;
-  }
-  
-  // Update last track ID
-  lastTrackId = trackId;
+  // Get playing state
+  const isPlaying = trackData.is_playing !== undefined ? 
+    trackData.is_playing : getIsPlaying();
   
   // Create the container
   const container = document.createElement('div');
@@ -74,8 +74,11 @@ export function renderTrackInfo(trackData) {
   // Add to the DOM
   document.body.appendChild(container);
   
-  // Add event listeners for controls
-  setupControlEvents();
+  // Setup event listeners
+  setupControlEvents(container);
+  
+  // Setup player state listeners
+  setupPlayerStateListeners(container);
   
   // Animate entrance
   setTimeout(() => {
@@ -85,174 +88,139 @@ export function renderTrackInfo(trackData) {
 }
 
 /**
- * Check if the Spotify player is ready
- * @returns {boolean} - Player readiness state
- */
-function isPlayerReady() {
-  const player = getPlayer();
-  return player !== null;
-}
-
-/**
  * Set up event listeners for playback control buttons
  */
-function setupControlEvents() {
+function setupControlEvents(container) {
   // Play/Pause button
-  const playPauseButton = document.querySelector('.control-button.play-pause');
+  const playPauseButton = container.querySelector('.control-button.play-pause');
   if (playPauseButton) {
-    // Make sure we remove any existing event listeners first by cloning the button
-    const newPlayPauseButton = playPauseButton.cloneNode(true);
-    playPauseButton.parentNode.replaceChild(newPlayPauseButton, playPauseButton);
-    
-    newPlayPauseButton.addEventListener('click', () => {
+    playPauseButton.addEventListener('click', async () => {
       console.log('Play/pause button clicked');
-      togglePlayback();
+      
+      // Visual feedback
+      playPauseButton.classList.add('control-active');
+      setTimeout(() => {
+        playPauseButton.classList.remove('control-active');
+      }, 200);
+      
+      try {
+        await togglePlayPause();
+        // State will be updated via event listener
+      } catch (error) {
+        console.error('Error toggling playback:', error);
+        showPlaybackError('Could not control playback. Try again.');
+      }
     });
   }
   
   // Previous track button
-  const prevButton = document.querySelector('.control-button.previous');
+  const prevButton = container.querySelector('.control-button.previous');
   if (prevButton) {
-    // Make sure we remove any existing event listeners first by cloning the button
-    const newPrevButton = prevButton.cloneNode(true);
-    prevButton.parentNode.replaceChild(newPrevButton, prevButton);
-    
-    newPrevButton.addEventListener('click', () => {
+    prevButton.addEventListener('click', async () => {
       console.log('Previous button clicked');
-      playPreviousTrack();
+      
+      // Visual feedback
+      prevButton.classList.add('control-active');
+      setTimeout(() => {
+        prevButton.classList.remove('control-active');
+      }, 200);
+      
+      try {
+        await skipToPrevious();
+        // State will be updated via event listener
+      } catch (error) {
+        console.error('Error playing previous track:', error);
+        showPlaybackError('Could not play previous track. Try again.');
+      }
     });
   }
   
   // Next track button
-  const nextButton = document.querySelector('.control-button.next');
+  const nextButton = container.querySelector('.control-button.next');
   if (nextButton) {
-    // Make sure we remove any existing event listeners first by cloning the button
-    const newNextButton = nextButton.cloneNode(true);
-    nextButton.parentNode.replaceChild(newNextButton, nextButton);
-    
-    newNextButton.addEventListener('click', () => {
+    nextButton.addEventListener('click', async () => {
       console.log('Next button clicked');
-      playNextTrack();
+      
+      // Visual feedback
+      nextButton.classList.add('control-active');
+      setTimeout(() => {
+        nextButton.classList.remove('control-active');
+      }, 200);
+      
+      try {
+        await skipToNext();
+        // State will be updated via event listener
+      } catch (error) {
+        console.error('Error playing next track:', error);
+        showPlaybackError('Could not play next track. Try again.');
+      }
     });
   }
+}
+
+/**
+ * Set up listeners for player state changes
+ */
+function setupPlayerStateListeners(container) {
+  // Clean up any existing listeners
+  if (stateChangeListener) {
+    removeEventListener('playerStateChanged', stateChangeListener);
+  }
+  
+  if (trackChangeListener) {
+    removeEventListener('trackChanged', trackChangeListener);
+  }
+  
+  if (errorListener) {
+    removeEventListener('error', errorListener);
+  }
+  
+  // Listen for player state changes (play/pause)
+  stateChangeListener = (data) => {
+    updatePlayPauseButton(container, data.isPlaying);
+  };
+  addEventListener('playerStateChanged', stateChangeListener);
+  
+  // Listen for track changes
+  trackChangeListener = (data) => {
+    if (data.track) {
+      // If this container is still in the DOM, update the track info
+      if (document.body.contains(container)) {
+        // Format track data to match the expected structure
+        const trackData = {
+          item: {
+            name: data.track.name,
+            artists: data.track.artists,
+            album: data.track.album,
+            id: data.track.id
+          },
+          is_playing: getIsPlaying()
+        };
+        
+        // Create a new track info display
+        renderTrackInfo(trackData);
+      }
+    }
+  };
+  addEventListener('trackChanged', trackChangeListener);
+  
+  // Listen for errors
+  errorListener = (error) => {
+    if (error.type === 'playback') {
+      showPlaybackError(error.message || 'Playback error occurred');
+    }
+  };
+  addEventListener('error', errorListener);
 }
 
 /**
  * Update the play/pause button UI based on playback state
  */
-function updatePlayPauseButton() {
-  const button = document.querySelector('.control-button.play-pause');
+function updatePlayPauseButton(container, isPlaying) {
+  const button = container.querySelector('.control-button.play-pause');
   if (button) {
     button.innerHTML = isPlaying ? getPauseIcon() : getPlayIcon();
     button.setAttribute('aria-label', isPlaying ? 'Pause' : 'Play');
-  }
-}
-
-/**
- * Toggle playback (play/pause)
- */
-async function togglePlayback() {
-  try {
-    console.log('Toggle playback called, current state:', isPlaying ? 'playing' : 'paused');
-    
-    // First, check if player is ready
-    if (!isPlayerReady()) {
-      console.warn('Player not ready yet, showing error message');
-      showPlaybackError('Playback controls not ready yet. Please wait a moment and try again.');
-      return;
-    }
-    
-    // Give visual feedback for clicks
-    const button = document.querySelector('.control-button.play-pause');
-    if (button) {
-      button.classList.add('control-active');
-      setTimeout(() => {
-        button.classList.remove('control-active');
-      }, 200);
-    }
-    
-    // First, update UI to be responsive
-    isPlaying = !isPlaying;
-    updatePlayPauseButton();
-    
-    // Then call the player SDK function 
-    await togglePlayPause();
-  } catch (error) {
-    console.error('Error toggling playback:', error);
-    // Revert UI if there was an error
-    isPlaying = !isPlaying;
-    updatePlayPauseButton();
-    showPlaybackError('Could not control playback. Try again or refresh the page.');
-  }
-}
-
-/**
- * Play next track
- */
-async function playNextTrack() {
-  try {
-    console.log('Next track called');
-    
-    // First, check if player is ready
-    if (!isPlayerReady()) {
-      console.warn('Player not ready yet, showing error message');
-      showPlaybackError('Playback controls not ready yet. Please wait a moment and try again.');
-      return;
-    }
-    
-    // Give visual feedback for clicks
-    const button = document.querySelector('.control-button.next');
-    if (button) {
-      button.classList.add('control-active');
-      setTimeout(() => {
-        button.classList.remove('control-active');
-      }, 200);
-    }
-    
-    // Call the player SDK function
-    await skipToNext();
-    
-    // Assume we're playing after skipping
-    isPlaying = true;
-    updatePlayPauseButton();
-  } catch (error) {
-    console.error('Error playing next track:', error);
-    showPlaybackError('Could not play next track. Try again or refresh the page.');
-  }
-}
-
-/**
- * Play previous track
- */
-async function playPreviousTrack() {
-  try {
-    console.log('Previous track called');
-    
-    // First, check if player is ready
-    if (!isPlayerReady()) {
-      console.warn('Player not ready yet, showing error message');
-      showPlaybackError('Playback controls not ready yet. Please wait a moment and try again.');
-      return;
-    }
-    
-    // Give visual feedback for clicks
-    const button = document.querySelector('.control-button.previous');
-    if (button) {
-      button.classList.add('control-active');
-      setTimeout(() => {
-        button.classList.remove('control-active');
-      }, 200);
-    }
-    
-    // Call the player SDK function
-    await skipToPrevious();
-    
-    // Assume we're playing after going to previous
-    isPlaying = true;
-    updatePlayPauseButton();
-  } catch (error) {
-    console.error('Error playing previous track:', error);
-    showPlaybackError('Could not play previous track. Try again or refresh the page.');
   }
 }
 
@@ -306,4 +274,24 @@ function getPauseIcon() {
       <rect x="14" y="4" width="4" height="16"></rect>
     </svg>
   `;
+}
+
+/**
+ * Clean up event listeners
+ */
+export function cleanupTrackInfo() {
+  if (stateChangeListener) {
+    removeEventListener('playerStateChanged', stateChangeListener);
+    stateChangeListener = null;
+  }
+  
+  if (trackChangeListener) {
+    removeEventListener('trackChanged', trackChangeListener);
+    trackChangeListener = null;
+  }
+  
+  if (errorListener) {
+    removeEventListener('error', errorListener);
+    errorListener = null;
+  }
 }

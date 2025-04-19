@@ -1,13 +1,22 @@
 // src/three/utils/Visualizer.js
-// Main controller for the 3D audio visualizer with enhanced visualization features and in-app music browser
+// Main controller for the 3D audio visualizer with enhanced visualization features and centralized state management
 
 import * as THREE from 'three';
 import { renderTrackInfo } from '../../ui/TrackInfo.js';
 import { createVolumeControl } from '../../ui/VolumeControl.js';
-import { refreshAccessToken } from '../../auth/handleAuth.js';
 import { createMusicBrowser } from '../../ui/MusicBrowser.js';
 import audioAnalyzer from '../../audio/AudioAnalyzer.js';
 import { getCurrentlyPlayingTrack, getAudioAnalysis, getAudioFeatures } from '../../spotify/spotifyAPI.js';
+import { 
+  initializePlayer, 
+  getPlayer, 
+  getIsPlaying, 
+  addEventListener, 
+  removeEventListener,
+  setAccessToken,
+  getDeviceId
+} from '../../spotify/spotifyPlayer.js';
+import { refreshAccessToken } from '../../auth/handleAuth.js';
 import '../../ui/volume-control.css';
 import '../../ui/music-browser.css';
 
@@ -57,14 +66,12 @@ let cameraTargetPosition = new THREE.Vector3(0, 0, 30);
 let cameraCurrentPosition = new THREE.Vector3(0, 8, 30);
 
 // Spotify and audio state
-let player = null;
 let accessTokenValue = null;
 let currentTrackId = null;
 let currentTrackAnalysis = null;
 let currentAudioFeatures = null;
 let currentTrackData = null;
 let musicBrowser = null;
-let spotifyDeviceId = null;
 
 // Animation state
 let animationTime = 0;
@@ -75,7 +82,7 @@ let lastUpdateTime = 0;
 let pulseFactor = 0;
 let pulseTime = 0;
 let lastPowerLevel = 0.5;
-let isPaused = false;
+let isPaused = true; // Start paused until we know player state
 
 // Current playback state
 let currentPlaybackProgressMs = 0;
@@ -91,6 +98,9 @@ let audioData = {
   beatIntensity: 0
 };
 
+// Clean up event listeners on shutdown
+let eventListeners = [];
+
 /**
  * Initialize the visualizer
  * @param {string} accessToken - Spotify access token
@@ -98,6 +108,7 @@ let audioData = {
 export async function initVisualizer(accessToken) {
   // Store access token for later use
   accessTokenValue = accessToken;
+  setAccessToken(accessToken);
   
   // Show the app container to make sure it's visible
   const appContainer = document.getElementById('app');
@@ -111,17 +122,31 @@ export async function initVisualizer(accessToken) {
   // Initialize audio analyzer
   await audioAnalyzer.initialize();
   
-  // Setup Spotify player
-  const playerInitialized = await setupSpotifyPlayer(accessToken);
-  
-  if (!playerInitialized) {
-    // If player failed to initialize, try to refresh token
-    const newToken = await refreshAccessToken();
-    if (newToken) {
-      accessTokenValue = newToken;
-      await setupSpotifyPlayer(newToken);
+  // Setup Spotify player with centralized state management
+  try {
+    await initializePlayer(accessToken);
+    
+    // Register for player events
+    registerEventListeners();
+    
+    // Setup complete, show success message
+    showMessage('Spotify visualizer ready! Loading your music...');
+  } catch (error) {
+    console.error('Error initializing player:', error);
+    
+    // Try to refresh token if this was an auth error
+    if (isAuthError(error)) {
+      const newToken = await refreshAccessToken();
+      if (newToken) {
+        accessTokenValue = newToken;
+        setAccessToken(newToken);
+        await initializePlayer(newToken);
+        registerEventListeners();
+      } else {
+        throw new Error('Authentication failed. Please reconnect your Spotify account.');
+      }
     } else {
-      throw new Error('Failed to initialize Spotify player. Authentication may have failed.');
+      throw error;
     }
   }
   
@@ -142,6 +167,132 @@ export async function initVisualizer(accessToken) {
   
   // Set up polling for current track
   pollCurrentTrack();
+  
+  // Create music browser once we have a device ID
+  setTimeout(() => {
+    if (getDeviceId()) {
+      musicBrowser = createMusicBrowser(accessTokenValue);
+    } else {
+      // Retry after a delay if device ID isn't ready yet
+      setTimeout(() => {
+        if (getDeviceId()) {
+          musicBrowser = createMusicBrowser(accessTokenValue);
+        }
+      }, 3000);
+    }
+  }, 1000);
+}
+
+/**
+ * Register event listeners for player state changes
+ */
+function registerEventListeners() {
+  // Listen for player state changes
+  const stateChangeListener = (data) => {
+    // Update global paused state
+    isPaused = !data.isPlaying;
+    audioAnalyzer.setPaused(isPaused);
+    
+    // Update current track info if track has changed
+    if (data.track && (!currentTrackId || data.track.id !== currentTrackId)) {
+      handleTrackChange(data.track);
+    }
+    
+    // Update playback position
+    if (data.position !== undefined) {
+      currentPlaybackProgressMs = data.position;
+      lastPlaybackUpdateTime = performance.now() / 1000;
+      audioAnalyzer.updateProgress(currentPlaybackProgressMs);
+    }
+  };
+  addEventListener('playerStateChanged', stateChangeListener);
+  eventListeners.push(['playerStateChanged', stateChangeListener]);
+  
+  // Listen for track changes
+  const trackChangeListener = (data) => {
+    if (data.track && (!currentTrackId || data.track.id !== currentTrackId)) {
+      handleTrackChange(data.track);
+    }
+  };
+  addEventListener('trackChanged', trackChangeListener);
+  eventListeners.push(['trackChanged', trackChangeListener]);
+  
+  // Listen for player ready event
+  const readyListener = (data) => {
+    if (data.deviceId) {
+      // Once we have a device ID, initialize the music browser
+      if (!musicBrowser && accessTokenValue) {
+        musicBrowser = createMusicBrowser(accessTokenValue);
+      }
+      
+      // Show welcome message
+      showMessage('Spotify visualizer ready! Click the Music button to browse and play tracks.');
+    }
+  };
+  addEventListener('ready', readyListener);
+  eventListeners.push(['ready', readyListener]);
+  
+  // Listen for errors
+  const errorListener = (error) => {
+    console.error('Player error:', error);
+    
+    if (isAuthError(error)) {
+      refreshAccessToken()
+        .then(newToken => {
+          if (newToken) {
+            accessTokenValue = newToken;
+            setAccessToken(newToken);
+            // Refresh the page to reinitialize everything
+            window.location.reload();
+          }
+        })
+        .catch(err => {
+          console.error('Failed to refresh token:', err);
+          showError('Authentication failed. Please reconnect your Spotify account.');
+        });
+    } else {
+      // For non-auth errors, just show a message
+      showError(error.message || 'An error occurred with playback.');
+    }
+  };
+  addEventListener('error', errorListener);
+  eventListeners.push(['error', errorListener]);
+}
+
+/**
+ * Handle track change event
+ * @param {Object} track - New track data
+ */
+async function handleTrackChange(track) {
+  // Update current track ID
+  currentTrackId = track.id;
+  
+  // Format track data to match the expected structure for renderTrackInfo
+  const trackData = {
+    item: {
+      name: track.name,
+      artists: track.artists,
+      album: track.album,
+      id: track.id
+    },
+    is_playing: !isPaused
+  };
+  
+  // Update current track data
+  currentTrackData = trackData;
+  
+  // Update track info display
+  renderTrackInfo(trackData);
+  
+  // Reset playback progress
+  currentPlaybackProgressMs = 0;
+  lastPlaybackUpdateTime = performance.now() / 1000;
+  
+  // Fetch track analysis data
+  await fetchTrackAnalysis(track.id);
+  
+  // Show track change message
+  showMessage(`Now playing: ${track.name} by ${track.artists[0].name}`);
 }
 
 /**
@@ -271,11 +422,6 @@ async function fetchTrackAnalysis(trackId) {
  * Set up volume control UI with persistent settings
  */
 function setupVolumeControl() {
-  if (!player) {
-    console.warn('Player not initialized, cannot set up volume control');
-    return;
-  }
-
   // Try to load saved volume from localStorage
   let initialVolume = 0.5; // Default to 50%
   try {
@@ -287,18 +433,11 @@ function setupVolumeControl() {
     console.warn('Could not load saved volume:', e);
   }
 
-  // Set initial volume on player
-  const scaledInitialVolume = Math.pow(initialVolume, 2); // Apply logarithmic curve
-  player.setVolume(scaledInitialVolume).then(() => {
-    console.log('Initial volume set successfully:', scaledInitialVolume);
-  }).catch(err => {
-    console.warn('Could not set initial volume:', err);
-  });
-
   // Create volume control component
   const volumeControl = createVolumeControl((volume) => {
     try {
-      player.setVolume(volume);
+      // Use the centralized function to set volume
+      setVolume(volume);
     } catch (error) {
       console.error('Error setting volume:', error);
       showError('Could not adjust volume. Please try again.');
@@ -419,23 +558,28 @@ function animate() {
 
 /**
  * Poll for the current track and playback state
+ * (Backup to the event-based state management)
  */
 function pollCurrentTrack() {
-  const pollInterval = 1000; // 1 second for more accurate playback position
+  const pollInterval = 5000; // 5 seconds - longer interval since we use events now
   
-  setInterval(async () => {
-    if (!accessTokenValue || !player) return;
+  const intervalId = setInterval(async () => {
+    if (!accessTokenValue) return;
     
     try {
+      // Get current player from centralized state
+      const player = getPlayer();
+      
+      // If no player is available, skip this poll
+      if (!player) return;
+      
       // Get playback state directly from the player
       const state = await player.getCurrentState();
       
+      // If we have a state, update our tracking
       if (state) {
         // Update pause state
-        const wasPlaying = !isPaused;
         isPaused = state.paused;
-        
-        // Update paused state in audio analyzer
         audioAnalyzer.setPaused(isPaused);
         
         // Update current playback position
@@ -446,42 +590,11 @@ function pollCurrentTrack() {
         audioAnalyzer.updateProgress(currentPlaybackProgressMs);
         
         // Update current track data from the player
-        if (state.track_window && state.track_window.current_track) {
-          const track = state.track_window.current_track;
-          
-          // If track changed, update info
-          if (track.id !== currentTrackId) {
-            currentTrackId = track.id;
-            
-            // Format track data to match the expected structure
-            const trackData = {
-              item: {
-                name: track.name,
-                artists: track.artists,
-                album: track.album,
-                id: track.id
-              },
-              is_playing: !isPaused
-            };
-            
-            currentTrackData = trackData;
-            renderTrackInfo(trackData);
-            
-            // Reset playback progress
-            currentPlaybackProgressMs = state.position;
-            lastPlaybackUpdateTime = performance.now() / 1000;
-            
-            // Fetch track analysis data
-            await fetchTrackAnalysis(track.id);
-            
-            // Show track change message
-            showMessage(`Now playing: ${track.name} by ${track.artists[0].name}`);
-          }
+        if (state.track_window && state.track_window.current_track && 
+            state.track_window.current_track.id !== currentTrackId) {
+          // Handle track change
+          handleTrackChange(state.track_window.current_track);
         }
-      } else {
-        // No track playing - set to paused
-        isPaused = true;
-        audioAnalyzer.setPaused(true);
       }
     } catch (error) {
       console.error('Error polling current track:', error);
@@ -493,10 +606,14 @@ function pollCurrentTrack() {
         if (newToken) {
           // Update the stored token value
           accessTokenValue = newToken;
+          setAccessToken(newToken);
         }
       }
     }
   }, pollInterval);
+  
+  // Store interval ID for cleanup
+  window.visualizerPollInterval = intervalId;
 }
 
 /**
@@ -572,191 +689,29 @@ function onWindowResize() {
 }
 
 /**
- * Initialize music browser for direct track selection
- * @param {string} deviceId - The Spotify player device ID
+ * Clean up resources when shutting down
  */
-function initializeMusicBrowser(deviceId) {
-  if (!player || !accessTokenValue) {
-    console.warn('Cannot initialize music browser: player or token not available');
-    return null;
+export function cleanup() {
+  // Remove interval
+  if (window.visualizerPollInterval) {
+    clearInterval(window.visualizerPollInterval);
   }
   
-  try {
-    // Create music browser component and pass the device ID
-    const browser = createMusicBrowser(player, accessTokenValue, deviceId);
-    
-    // Add to the DOM
-    document.body.appendChild(browser.element);
-    
-    // Show a welcome message
-    showMessage('Tip: Click the Music button in the top right to browse and play tracks', 7000);
-    
-    return browser;
-  } catch (error) {
-    console.error('Error initializing music browser:', error);
-    return null;
+  // Remove event listeners
+  eventListeners.forEach(([event, listener]) => {
+    removeEventListener(event, listener);
+  });
+  
+  // Clean up music browser if it exists
+  if (musicBrowser && typeof musicBrowser.dispose === 'function') {
+    musicBrowser.dispose();
   }
-}
-
-/**
- * Set up the Spotify Web Playback SDK
- * @param {string} accessToken - Spotify access token
- * @returns {Promise<Object|null>} - Spotify player object or null if failed
- */
-async function setupSpotifyPlayer(accessToken) {
-  try {
-    await waitForSpotifySDK();
-    
-    player = new Spotify.Player({
-      name: 'Spotify 3D Visualizer',
-      getOAuthToken: cb => cb(accessToken),
-      volume: 0.5
-    });
   
-    // Error handling
-    player.addListener('initialization_error', ({ message }) => {
-      console.error('Failed to initialize player:', message);
-      if (!message.includes('robustness') && !message.includes('404')) {
-        showError('Failed to initialize Spotify player. Please try again.');
-      }
-    });
-    
-    player.addListener('authentication_error', ({ message }) => {
-      console.error('Failed to authenticate:', message);
-      showError('Authentication failed. Please reconnect your Spotify account.');
-    });
-    
-    player.addListener('account_error', ({ message }) => {
-      console.error('Account error:', message);
-      showError('Spotify Premium is required for this visualizer.');
-    });
-    
-    player.addListener('playback_error', ({ message }) => {
-      console.error('Playback error:', message);
-      // Don't show error if it seems to be a common Spotify API error
-      if (!message.includes('404') && !message.includes('403')) {
-        showError('Playback error. Please try again or check your connection.');
-      }
-    });
-  
-    // Playback status listeners
-    player.addListener('ready', async ({ device_id }) => {
-      console.log('Player ready with device ID', device_id);
-      
-      // Store device ID both locally and globally
-      spotifyDeviceId = device_id;
-      window.spotifyDeviceId = device_id;
-      
-      // Initialize the music browser with the device ID
-      musicBrowser = initializeMusicBrowser(device_id);
-      
-      // Show welcome message
-      showMessage('Spotify visualizer ready! Click the Music button to browse and play tracks.');
-    });
-  
-    // Track change listener
-    player.addListener('player_state_changed', async (state) => {
-      if (!state) {
-        // No state means no active player - set to paused
-        isPaused = true;
-        audioAnalyzer.setPaused(true);
-        return;
-      }
-      
-      // Update pause state
-      isPaused = state.paused;
-      audioAnalyzer.setPaused(isPaused);
-      
-      // If no track window or current track, something's wrong
-      if (!state.track_window || !state.track_window.current_track) {
-        return;
-      }
-      
-      const track = state.track_window.current_track;
-      
-      // If track changed, update UI
-      if (!currentTrackId || track.id !== currentTrackId) {
-        currentTrackId = track.id;
-        
-        // Create track data in the format expected by renderTrackInfo
-        const trackData = {
-          item: {
-            name: track.name,
-            artists: [{ name: track.artists[0].name }],
-            album: {
-              name: track.album.name,
-              images: [{ url: track.album.images[0].url }]
-            },
-            id: track.id
-          },
-          is_playing: !isPaused
-        };
-        
-        // Store current track data
-        currentTrackData = trackData;
-        
-        renderTrackInfo(trackData);
-        
-        // Reset playback progress
-        currentPlaybackProgressMs = state.position;
-        lastPlaybackUpdateTime = performance.now() / 1000;
-        
-        // Fetch track analysis data
-        await fetchTrackAnalysis(track.id);
-        
-        // Show track change message
-        showMessage(`Now playing: ${track.name} by ${track.artists[0].name}`);
-      }
-      
-      // Update current progress
-      currentPlaybackProgressMs = state.position;
-      
-      // If we have a device ID in the state, update it
-      if (state.device_id && state.device_id !== spotifyDeviceId) {
-        spotifyDeviceId = state.device_id;
-        window.spotifyDeviceId = state.device_id;
-        
-        // Update the music browser if it exists
-        if (musicBrowser && typeof musicBrowser.updateDeviceId === 'function') {
-          musicBrowser.updateDeviceId(state.device_id);
-        }
-      }
-    });
-
-    // Connect player and handle connection issues
-    const connected = await player.connect().catch(error => {
-      console.error('Player connection error:', error);
-      showError('Failed to connect to Spotify. Please try again.');
-      return false;
-    });
-    
-    if (!connected) {
-      console.error('Player failed to connect');
-      return null;
-    }
-
-    return player;
-  } catch (error) {
-    console.error('Error setting up Spotify player:', error);
-    
-    // Check if this is an authentication error
-    if (error.message && (
-      error.message.includes('authentication') || 
-      error.message.includes('token') || 
-      error.message.includes('Authorization')
-    )) {
-      // Try to refresh the token
-      const newToken = await refreshAccessToken();
-      if (newToken) {
-        // Retry with new token
-        return setupSpotifyPlayer(newToken);
-      } else {
-        showError('Authentication failed. Please reconnect your Spotify account.');
-      }
-    } else {
-      showError('Failed to initialize Spotify player. Please try again.');
-    }
-    
-    return null;
+  // Clean up THREE.js resources
+  if (renderer) {
+    renderer.dispose();
   }
+  
+  // Remove window resize listener
+  window.removeEventListener('resize', onWindowResize);
 }

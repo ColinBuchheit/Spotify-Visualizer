@@ -1,256 +1,474 @@
-// PlaybackControls.js - Updated to use centralized state management
+// src/spotify/spotifyPlayer.js
+// Centralized Spotify Player management with event system
 
-import { 
-  getPlayer, 
-  getIsPlaying, 
-  getCurrentTrack,
-  playTrack, 
-  addEventListener, 
-  removeEventListener,
-  togglePlayPause,
-  skipToNext,
-  skipToPrevious,
-  setVolume
-} from '../spotify/spotifyPlayer.js';
+import { handleAuthError, refreshAccessToken } from '../auth/handleAuth.js';
+import { showMessage, waitForSpotifySDK } from '../three/utils/VisualizerUtils.js';
 
-// Tracking event listeners
-let stateChangeListener = null;
-let trackChangeListener = null;
-let errorListener = null;
+// Player state
+let spotifyPlayer = null;
+let deviceId = null;
+let accessToken = null;
+let isReady = false;
+let isPlaying = false;
+let currentTrack = null;
+let currentPlaybackPosition = 0;
+
+// Event system
+const eventListeners = {
+  playerStateChanged: [],
+  trackChanged: [],
+  ready: [],
+  error: []
+};
 
 /**
- * Create playback controls for Spotify
- * @param {string} accessToken - Spotify access token
- * @returns {Object} - DOM element containing the controls
+ * Initialize the Spotify Web Playback SDK player
+ * @param {string} token - Spotify access token
+ * @returns {Promise<Object>} - Returns player instance on success
  */
-export function createPlaybackControls(accessToken) {
-    // Create container
-    const container = document.createElement('div');
-    container.className = 'playback-controls';
+export async function initializePlayer(token) {
+  if (!token) {
+    throw new Error('Access token is required to initialize player');
+  }
+  
+  // Store token
+  accessToken = token;
+  
+  try {
+    // Wait for SDK to load
+    await waitForSpotifySDK();
     
-    // Get current player state
-    const isPlaying = getIsPlaying();
-    const currentTrack = getCurrentTrack();
-    
-    // Create Play/Pause button
-    const playPauseBtn = document.createElement('button');
-    playPauseBtn.className = 'control-btn play-pause';
-    playPauseBtn.innerHTML = isPlaying 
-      ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"><path fill="none" d="M0 0h24v24H0z"/><path d="M6 5h4v14H6zm8 0h4v14h-4z" fill="currentColor"/></svg>`
-      : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"><path fill="none" d="M0 0h24v24H0z"/><path d="M8 5v14l11-7z" fill="currentColor"/></svg>`;
-    
-    // Create Previous button
-    const prevBtn = document.createElement('button');
-    prevBtn.className = 'control-btn prev';
-    prevBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"><path fill="none" d="M0 0h24v24H0z"/><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" fill="currentColor"/></svg>`;
-    
-    // Create Next button
-    const nextBtn = document.createElement('button');
-    nextBtn.className = 'control-btn next';
-    nextBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"><path fill="none" d="M0 0h24v24H0z"/><path d="M16 6h2v12h-2zm-8 6l8.5-6v12z" fill="currentColor"/></svg>`;
-    
-    // Create a track selection element
-    const trackSelect = document.createElement('div');
-    trackSelect.className = 'track-select';
-    trackSelect.innerHTML = `
-        <button class="select-track-btn">${currentTrack?.name || 'Select Track'}</button>
-        <div class="track-dropdown" style="display: none;">
-            <input type="text" placeholder="Search for tracks..." class="track-search">
-            <div class="track-results"></div>
-        </div>
-    `;
-    
-    // Add elements to container
-    container.appendChild(prevBtn);
-    container.appendChild(playPauseBtn);
-    container.appendChild(nextBtn);
-    container.appendChild(trackSelect);
+    // Create player instance
+    spotifyPlayer = new Spotify.Player({
+      name: 'Spotify 3D Visualizer',
+      getOAuthToken: cb => cb(accessToken),
+      volume: 0.5
+    });
     
     // Set up event listeners
-    setupEventListeners(container, playPauseBtn, prevBtn, nextBtn, trackSelect, accessToken);
+    setupPlayerEvents();
     
-    // Listen for player state changes
-    stateChangeListener = (data) => {
-        // Update play/pause button based on playing state
-        if (data.isPlaying) {
-            playPauseBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"><path fill="none" d="M0 0h24v24H0z"/><path d="M6 5h4v14H6zm8 0h4v14h-4z" fill="currentColor"/></svg>`;
-        } else {
-            playPauseBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"><path fill="none" d="M0 0h24v24H0z"/><path d="M8 5v14l11-7z" fill="currentColor"/></svg>`;
-        }
-    };
-    addEventListener('playerStateChanged', stateChangeListener);
+    // Connect player
+    const connected = await spotifyPlayer.connect();
     
-    // Listen for track changes
-    trackChangeListener = (data) => {
-        const selectTrackBtn = trackSelect.querySelector('.select-track-btn');
-        if (selectTrackBtn && data.track) {
-            selectTrackBtn.textContent = data.track.name;
-        }
-    };
-    addEventListener('trackChanged', trackChangeListener);
-    
-    // Listen for errors
-    errorListener = (error) => {
-        if (error.type === 'playback') {
-            console.error('Playback error:', error.message);
-            // You could show an error message here
-        }
-    };
-    addEventListener('error', errorListener);
-    
-    return {
-        element: container,
-        dispose: () => {
-            // Clean up event listeners when component is removed
-            if (stateChangeListener) removeEventListener('playerStateChanged', stateChangeListener);
-            if (trackChangeListener) removeEventListener('trackChanged', trackChangeListener);
-            if (errorListener) removeEventListener('error', errorListener);
-        }
-    };
-}
-
-/**
- * Set up event listeners for the playback controls
- */
-function setupEventListeners(container, playPauseBtn, prevBtn, nextBtn, trackSelect, accessToken) {
-    // Handle play/pause
-    playPauseBtn.addEventListener('click', async () => {
-        try {
-            await togglePlayPause();
-            // State update is handled by the state change listener
-        } catch (error) {
-            console.error('Error toggling playback:', error);
-        }
-    });
-    
-    // Handle next/previous
-    nextBtn.addEventListener('click', async () => {
-        try {
-            await skipToNext();
-            // State update is handled by the state change listener
-        } catch (error) {
-            console.error('Error skipping to next track:', error);
-        }
-    });
-    
-    prevBtn.addEventListener('click', async () => {
-        try {
-            await skipToPrevious();
-            // State update is handled by the state change listener
-        } catch (error) {
-            console.error('Error skipping to previous track:', error);
-        }
-    });
-    
-    // Track selection functionality
-    const selectTrackBtn = trackSelect.querySelector('.select-track-btn');
-    const trackDropdown = trackSelect.querySelector('.track-dropdown');
-    const trackSearch = trackSelect.querySelector('.track-search');
-    const trackResults = trackSelect.querySelector('.track-results');
-    
-    selectTrackBtn.addEventListener('click', () => {
-        trackDropdown.style.display = trackDropdown.style.display === 'none' ? 'block' : 'none';
-    });
-    
-    document.addEventListener('click', (event) => {
-        if (!trackSelect.contains(event.target)) {
-            trackDropdown.style.display = 'none';
-        }
-    });
-    
-    // Search functionality
-    let searchTimeout = null;
-    
-    trackSearch.addEventListener('input', (e) => {
-        const query = e.target.value.trim();
-        
-        clearTimeout(searchTimeout);
-        
-        if (query.length < 2) {
-            trackResults.innerHTML = '';
-            return;
-        }
-        
-        searchTimeout = setTimeout(() => {
-            searchTracks(query, accessToken)
-                .then(tracks => {
-                    displayTrackResults(tracks, trackResults, accessToken);
-                })
-                .catch(error => {
-                    console.error('Error searching for tracks:', error);
-                    trackResults.innerHTML = '<div class="track-error">Error searching for tracks</div>';
-                });
-        }, 500);
-    });
-}
-
-/**
- * Display track results
- */
-function displayTrackResults(tracks, resultsContainer, accessToken) {
-    if (!tracks || tracks.length === 0) {
-        resultsContainer.innerHTML = '<div class="no-results">No tracks found</div>';
-        return;
+    if (!connected) {
+      throw new Error('Failed to connect to Spotify player');
     }
     
-    resultsContainer.innerHTML = '';
-    
-    tracks.forEach(track => {
-        const trackItem = document.createElement('div');
-        trackItem.className = 'track-item';
-        trackItem.innerHTML = `
-            <img src="${track.album.images.length > 0 ? track.album.images[track.album.images.length - 1].url : ''}" alt="${track.name}">
-            <div class="track-info">
-                <div class="track-name">${track.name}</div>
-                <div class="track-artist">${track.artists.map(a => a.name).join(', ')}</div>
-            </div>
-        `;
-        
-        trackItem.addEventListener('click', async () => {
-            try {
-                await playTrack(track.uri);
-                // Close dropdown
-                const dropdown = resultsContainer.closest('.track-dropdown');
-                if (dropdown) {
-                    dropdown.style.display = 'none';
-                }
-                
-                // Update button text
-                const selectBtn = resultsContainer.closest('.track-select').querySelector('.select-track-btn');
-                if (selectBtn) {
-                  selectBtn.textContent = track.name;
-                }
-            } catch (error) {
-                console.error('Error playing track:', error);
-            }
-        });
-        
-        resultsContainer.appendChild(trackItem);
-    });
+    console.log('Player initialized and connected');
+    return spotifyPlayer;
+  } catch (error) {
+    console.error('Error initializing Spotify player:', error);
+    triggerEvent('error', { type: 'initialization', message: error.message || 'Failed to initialize player' });
+    throw error;
+  }
 }
 
 /**
- * Function to search tracks
- * @param {string} query - Search query
- * @param {string} token - Spotify access token
- * @returns {Promise<Array>} - Array of track results
+ * Set up player event listeners
  */
-async function searchTracks(query, token) {
+function setupPlayerEvents() {
+  if (!spotifyPlayer) return;
+  
+  // Error handling
+  spotifyPlayer.addListener('initialization_error', ({ message }) => {
+    console.error('Failed to initialize player:', message);
+    triggerEvent('error', { type: 'initialization', message });
+  });
+  
+  spotifyPlayer.addListener('authentication_error', ({ message }) => {
+    console.error('Failed to authenticate:', message);
+    triggerEvent('error', { type: 'authentication', message });
+    
+    // Try to refresh token
+    refreshAccessToken()
+      .then(newToken => {
+        if (newToken) {
+          accessToken = newToken;
+          // Reconnect player
+          spotifyPlayer.connect();
+        }
+      })
+      .catch(err => {
+        console.error('Token refresh failed:', err);
+      });
+  });
+  
+  spotifyPlayer.addListener('account_error', ({ message }) => {
+    console.error('Account error:', message);
+    triggerEvent('error', { type: 'account', message });
+  });
+  
+  spotifyPlayer.addListener('playback_error', ({ message }) => {
+    console.error('Playback error:', message);
+    triggerEvent('error', { type: 'playback', message });
+  });
+  
+  // Ready event
+  spotifyPlayer.addListener('ready', ({ device_id }) => {
+    console.log('Player ready with device ID', device_id);
+    isReady = true;
+    deviceId = device_id;
+    
+    // Trigger ready event
+    triggerEvent('ready', { deviceId: device_id });
+  });
+  
+  // Player state changed
+  spotifyPlayer.addListener('player_state_changed', state => {
+    if (!state) {
+      isPlaying = false;
+      triggerEvent('playerStateChanged', { isPlaying, position: 0 });
+      return;
+    }
+    
+    // Update playing state
+    isPlaying = !state.paused;
+    
+    // Update playback position
+    currentPlaybackPosition = state.position;
+    
+    // Check for track change
+    if (state.track_window && state.track_window.current_track) {
+      const track = state.track_window.current_track;
+      
+      // If track changed, update and trigger event
+      if (!currentTrack || currentTrack.id !== track.id) {
+        currentTrack = track;
+        triggerEvent('trackChanged', { track });
+      }
+    }
+    
+    // Trigger state change event
+    triggerEvent('playerStateChanged', { 
+      isPlaying, 
+      position: state.position,
+      track: currentTrack
+    });
+  });
+}
+
+/**
+ * Get the Spotify player instance
+ * @returns {Object|null} - Player instance or null if not initialized
+ */
+export function getPlayer() {
+  return spotifyPlayer;
+}
+
+/**
+ * Get the current device ID
+ * @returns {string|null} - Device ID or null if not ready
+ */
+export function getDeviceId() {
+  return deviceId;
+}
+
+/**
+ * Check if player is ready
+ * @returns {boolean} - True if player is ready
+ */
+export function isPlayerReady() {
+  return isReady;
+}
+
+/**
+ * Get current playing state
+ * @returns {boolean} - True if currently playing
+ */
+export function getIsPlaying() {
+  return isPlaying;
+}
+
+/**
+ * Get current track
+ * @returns {Object|null} - Current track data or null
+ */
+export function getCurrentTrack() {
+  return currentTrack;
+}
+
+/**
+ * Get current playback position
+ * @returns {number} - Current position in milliseconds
+ */
+export function getPlaybackPosition() {
+  return currentPlaybackPosition;
+}
+
+/**
+ * Set the access token (for refreshes)
+ * @param {string} token - New access token
+ */
+export function setAccessToken(token) {
+  accessToken = token;
+}
+
+/**
+ * Toggle play/pause
+ * @returns {Promise<void>}
+ */
+export async function togglePlayPause() {
+  if (!spotifyPlayer) {
+    throw new Error('Player not initialized');
+  }
+  
+  try {
+    if (isPlaying) {
+      await spotifyPlayer.pause();
+    } else {
+      await spotifyPlayer.resume();
+    }
+    
+    // State will be updated via player_state_changed event
+    return true;
+  } catch (error) {
+    console.error('Error toggling playback:', error);
+    triggerEvent('error', { type: 'playback', message: 'Failed to toggle playback' });
+    throw error;
+  }
+}
+
+/**
+ * Skip to next track
+ * @returns {Promise<void>}
+ */
+export async function skipToNext() {
+  if (!spotifyPlayer) {
+    throw new Error('Player not initialized');
+  }
+  
+  try {
+    await spotifyPlayer.nextTrack();
+    // State will be updated via player_state_changed event
+    return true;
+  } catch (error) {
+    console.error('Error skipping to next track:', error);
+    triggerEvent('error', { type: 'playback', message: 'Failed to skip to next track' });
+    throw error;
+  }
+}
+
+/**
+ * Skip to previous track
+ * @returns {Promise<void>}
+ */
+export async function skipToPrevious() {
+  if (!spotifyPlayer) {
+    throw new Error('Player not initialized');
+  }
+  
+  try {
+    await spotifyPlayer.previousTrack();
+    // State will be updated via player_state_changed event
+    return true;
+  } catch (error) {
+    console.error('Error skipping to previous track:', error);
+    triggerEvent('error', { type: 'playback', message: 'Failed to skip to previous track' });
+    throw error;
+  }
+}
+
+/**
+ * Set volume (0-1)
+ * @param {number} volume - Volume level (0-1)
+ * @returns {Promise<void>}
+ */
+export async function setVolume(volume) {
+  if (!spotifyPlayer) {
+    throw new Error('Player not initialized');
+  }
+  
+  if (volume < 0 || volume > 1) {
+    throw new Error('Volume must be between 0 and 1');
+  }
+  
+  try {
+    await spotifyPlayer.setVolume(volume);
+    
+    // Save to localStorage for persistence
     try {
-        const response = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=5`, {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error('Search failed');
-        }
-        
-        const data = await response.json();
-        return data.tracks.items;
-    } catch (error) {
-        console.error('Error searching tracks:', error);
-        throw error;
+      localStorage.setItem('spotify_visualizer_volume', volume.toString());
+    } catch (e) {
+      console.warn('Could not save volume to localStorage:', e);
     }
+    
+    return true;
+  } catch (error) {
+    console.error('Error setting volume:', error);
+    triggerEvent('error', { type: 'playback', message: 'Failed to set volume' });
+    throw error;
+  }
+}
+
+/**
+ * Play a specific track
+ * @param {string} uri - Spotify URI for the track
+ * @returns {Promise<void>}
+ */
+export async function playTrack(uri) {
+  if (!spotifyPlayer) {
+    throw new Error('Player not initialized');
+  }
+  
+  if (!deviceId) {
+    throw new Error('Device ID not available');
+  }
+  
+  try {
+    const response = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      },
+      body: JSON.stringify({
+        uris: [uri]
+      })
+    });
+    
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error('No active device found. Make sure the player is ready.');
+      } else if (response.status === 401) {
+        throw new Error('Authentication failed. Token may have expired.');
+      } else {
+        throw new Error(`Failed to play track: ${response.status}`);
+      }
+    }
+    
+    // State will be updated via player_state_changed event
+    return true;
+  } catch (error) {
+    console.error('Error playing track:', error);
+    
+    // If it's an auth error, try to refresh token
+    if (error.message?.includes('Authentication') || error.status === 401) {
+      try {
+        const newToken = await refreshAccessToken();
+        if (newToken) {
+          accessToken = newToken;
+          // Retry playing track with new token
+          return playTrack(uri);
+        }
+      } catch (refreshError) {
+        console.error('Token refresh failed:', refreshError);
+      }
+    }
+    
+    triggerEvent('error', { type: 'playback', message: 'Failed to play track' });
+    throw error;
+  }
+}
+
+/**
+ * Play tracks from an album
+ * @param {string} albumUri - Spotify URI for the album
+ * @returns {Promise<void>}
+ */
+export async function playAlbum(albumUri) {
+  if (!spotifyPlayer) {
+    throw new Error('Player not initialized');
+  }
+  
+  if (!deviceId) {
+    throw new Error('Device ID not available');
+  }
+  
+  try {
+    const response = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      },
+      body: JSON.stringify({
+        context_uri: albumUri
+      })
+    });
+    
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error('No active device found. Make sure the player is ready.');
+      } else if (response.status === 401) {
+        throw new Error('Authentication failed. Token may have expired.');
+      } else {
+        throw new Error(`Failed to play album: ${response.status}`);
+      }
+    }
+    
+    // State will be updated via player_state_changed event
+    return true;
+  } catch (error) {
+    console.error('Error playing album:', error);
+    triggerEvent('error', { type: 'playback', message: 'Failed to play album' });
+    throw error;
+  }
+}
+
+/**
+ * Add event listener
+ * @param {string} event - Event type
+ * @param {Function} callback - Callback function
+ */
+export function addEventListener(event, callback) {
+  if (!eventListeners[event]) {
+    eventListeners[event] = [];
+  }
+  
+  eventListeners[event].push(callback);
+}
+
+/**
+ * Remove event listener
+ * @param {string} event - Event type
+ * @param {Function} callback - Callback function to remove
+ */
+export function removeEventListener(event, callback) {
+  if (!eventListeners[event]) return;
+  
+  const index = eventListeners[event].indexOf(callback);
+  if (index !== -1) {
+    eventListeners[event].splice(index, 1);
+  }
+}
+
+/**
+ * Trigger an event
+ * @param {string} event - Event type
+ * @param {Object} data - Event data
+ */
+function triggerEvent(event, data) {
+  if (!eventListeners[event]) return;
+  
+  for (const callback of eventListeners[event]) {
+    try {
+      callback(data);
+    } catch (error) {
+      console.error(`Error in ${event} event listener:`, error);
+    }
+  }
+}
+
+/**
+ * Clean up player resources
+ */
+export function cleanupPlayer() {
+  if (spotifyPlayer) {
+    // Disconnect player
+    spotifyPlayer.disconnect();
+    
+    // Remove all event listeners
+    Object.keys(eventListeners).forEach(event => {
+      eventListeners[event] = [];
+    });
+    
+    // Reset state
+    spotifyPlayer = null;
+    deviceId = null;
+    isReady = false;
+    isPlaying = false;
+    currentTrack = null;
+    currentPlaybackPosition = 0;
+  }
 }

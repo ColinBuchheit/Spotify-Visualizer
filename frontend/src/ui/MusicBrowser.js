@@ -1,18 +1,19 @@
 // src/ui/MusicBrowser.js
-// Comprehensive music browser with centralized state management
+// Comprehensive music browser with improved state management
 
 import { search, getUserProfile, getRecentlyPlayed } from '../spotify/spotifyAPI.js';
 import {
     playTrack,
+    playAlbum,
     getDeviceId,
     togglePlayPause,
     skipToNext,
     skipToPrevious,
     addEventListener,
     removeEventListener,
-    getIsPlaying
+    getIsPlaying,
+    getCurrentTrack
 } from '../spotify/spotifyPlayer.js';
-import './music-browser.css';
 
 // Tracking event listeners
 let stateChangeListener = null;
@@ -100,11 +101,17 @@ export function createMusicBrowser(accessToken) {
         </div>
     `;
 
-    // Get current state
+    // Get current state from central player
     const isPlaying = getIsPlaying();
+    const currentTrack = getCurrentTrack();
     
     // Update play button to match current state
     updatePlayPauseButton(container, isPlaying);
+    
+    // Update now playing display if we have a track
+    if (currentTrack) {
+        updateNowPlayingDisplay(container, currentTrack);
+    }
     
     // Set up event listeners
     setupEventListeners(container, accessToken);
@@ -151,7 +158,7 @@ export function createMusicBrowser(accessToken) {
 /**
  * Update play/pause button based on play state
  */
-function updatePlayPauseButton(container, isPlaying) {
+export function updatePlayPauseButton(container, isPlaying) {
     const playPauseButton = container.querySelector('.control-button.play-pause');
     if (playPauseButton) {
         if (isPlaying) {
@@ -177,11 +184,12 @@ function updatePlayPauseButton(container, isPlaying) {
 function updateNowPlayingDisplay(container, track) {
     const nowPlayingInfo = container.querySelector('.now-playing-info');
     if (nowPlayingInfo && track) {
+        const imageUrl = track.album?.images?.[0]?.url;
         nowPlayingInfo.innerHTML = `
-            <img src="${track.album.images[0].url}" class="mini-cover" alt="${track.name}">
+            ${imageUrl ? `<img src="${imageUrl}" class="mini-cover" alt="${track.name}">` : ''}
             <div class="now-playing-text">
                 <div class="now-playing-title">${track.name}</div>
-                <div class="now-playing-artist">${track.artists[0].name}</div>
+                <div class="now-playing-artist">${track.artists?.[0]?.name || 'Unknown Artist'}</div>
             </div>
         `;
     }
@@ -318,7 +326,7 @@ function handleSearchInput(e) {
 /**
  * Toggle browser visibility
  */
-function toggleBrowser(container) {
+export function toggleBrowser(container) {
     const browserPanel = container.querySelector('.music-browser');
     if (!browserPanel) return;
     
@@ -340,7 +348,7 @@ function toggleBrowser(container) {
 /**
  * Close the browser
  */
-function closeBrowser(container) {
+export function closeBrowser(container) {
     const browserPanel = container.querySelector('.music-browser');
     if (browserPanel) {
         browserPanel.style.display = 'none';
@@ -500,6 +508,7 @@ function createTrackList(tracks, accessToken) {
                 // State update handled by event listeners
             } catch (error) {
                 console.error('Error playing track:', error);
+                showError(trackItem.closest('.music-browser-container'), 'Failed to play track. Please try again.');
             }
         });
         
@@ -525,7 +534,7 @@ function createAlbumItem(album, container, accessToken) {
     
     // Add click handler to load album tracks
     albumItem.addEventListener('click', () => {
-        loadAlbumTracks(container, album.id, accessToken);
+        loadAlbumTracks(container, album.id, album.uri, accessToken);
     });
     
     return albumItem;
@@ -594,7 +603,7 @@ async function loadRecentTracks(container, accessToken) {
 /**
  * Load and display album tracks
  */
-async function loadAlbumTracks(container, albumId, accessToken) {
+async function loadAlbumTracks(container, albumId, albumUri, accessToken) {
     const searchTracksList = container.querySelector('.tab-content.search-results .track-list');
     if (!searchTracksList) return;
     
@@ -615,6 +624,27 @@ async function loadAlbumTracks(container, albumId, accessToken) {
         
         const data = await response.json();
         
+        // Add a "Play Album" button at the top
+        searchTracksList.innerHTML = `
+            <div class="album-header">
+                <h3>Album Tracks</h3>
+                <button class="play-album-button">Play Album</button>
+            </div>
+        `;
+        
+        // Add click handler for play album button
+        const playAlbumButton = searchTracksList.querySelector('.play-album-button');
+        if (playAlbumButton && albumUri) {
+            playAlbumButton.addEventListener('click', async () => {
+                try {
+                    await playAlbum(albumUri);
+                } catch (error) {
+                    console.error('Error playing album:', error);
+                    showError(container, 'Failed to play album. Please try again.');
+                }
+            });
+        }
+        
         // Get full track details for each track
         const trackIds = data.items.map(track => track.id).join(',');
         const tracksResponse = await fetch(`https://api.spotify.com/v1/tracks?ids=${trackIds}`, {
@@ -629,11 +659,7 @@ async function loadAlbumTracks(container, albumId, accessToken) {
         
         const tracksData = await tracksResponse.json();
         
-        // Clear loading spinner
-        searchTracksList.innerHTML = '';
-        
         // Display tracks
-        searchTracksList.innerHTML = `<h3>Album Tracks</h3>`;
         const trackList = createTrackList(tracksData.tracks, accessToken);
         searchTracksList.appendChild(trackList);
     } catch (error) {
@@ -819,9 +845,3 @@ function formatDuration(ms) {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
-export { 
-    createMusicBrowser, 
-    toggleBrowser, 
-    closeBrowser,
-    updatePlayPauseButton
-};
