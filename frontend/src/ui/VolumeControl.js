@@ -1,5 +1,5 @@
 // src/ui/VolumeControl.js
-// Volume control component for Spotify player
+// Volume control component for Spotify player with percentage overlay above slider
 
 import { setVolume as setPlayerVolume } from '../spotify/spotifyPlayer.js';
 
@@ -24,6 +24,11 @@ export function createVolumeControl(onVolumeChange, initialVolume = 0.4) {
     const sliderContainer = document.createElement('div');
     sliderContainer.className = 'volume-slider-container';
     
+    // Create volume percentage display
+    const volumePercentage = document.createElement('div');
+    volumePercentage.className = 'volume-percentage';
+    volumePercentage.textContent = `${Math.round(initialVolume * 100)}%`;
+    
     // Create slider track
     const sliderTrack = document.createElement('div');
     sliderTrack.className = 'volume-slider-track';
@@ -41,6 +46,7 @@ export function createVolumeControl(onVolumeChange, initialVolume = 0.4) {
     // Append elements
     sliderTrack.appendChild(sliderFill);
     sliderTrack.appendChild(sliderKnob);
+    sliderContainer.appendChild(volumePercentage);
     sliderContainer.appendChild(sliderTrack);
     container.appendChild(icon);
     container.appendChild(sliderContainer);
@@ -124,6 +130,7 @@ export function createVolumeControl(onVolumeChange, initialVolume = 0.4) {
       sliderFill.style.width = `${rawVolume * 100}%`;
       sliderKnob.style.left = `${rawVolume * 100}%`;
       icon.innerHTML = getVolumeIcon(rawVolume);
+      volumePercentage.textContent = `${Math.round(rawVolume * 100)}%`;
       
       // Save to localStorage for persistence
       try {

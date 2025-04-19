@@ -38,7 +38,28 @@
   width: 100px;
   height: 30px;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+}
+
+.volume-percentage {
+  position: absolute;
+  top: -25px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none; /* Ensures it doesn't block mouse events */
+}
+
+.volume-slider-container:hover .volume-percentage {
+  opacity: 1;
 }
 
 .volume-slider-track {
@@ -106,70 +127,62 @@
   100% { opacity: 0; }
 }
 
-/* Error message positioning */
-#error-overlay .error-container {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  max-width: 350px;
-  width: auto;
-  background-color: rgba(40, 40, 40, 0.9);
-  border-left: 4px solid #e61e32;
-  border-radius: 4px;
-  padding: 15px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-  z-index: 1100; /* Higher than volume control */
-  animation: slideInFromRight 0.3s ease-out;
+/* Ensure the volume control is always on top of other UI elements */
+.volume-control {
+  z-index: 1100 !important;
 }
 
-#error-overlay {
+/* Hide the toast notifications that appear over the volume control */
+.toast-message {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: none;
-  justify-content: flex-start;
-  align-items: flex-start;
-  z-index: 1000;
-  padding: 20px;
-}
-
-@keyframes slideInFromRight {
-  0% {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  100% {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
-/* Updated styling for the message notification */
-.message-notification {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  background-color: rgba(29, 185, 84, 0.9);
+  bottom: 30px;
+  left: 30px !important; /* Move to the left side instead of right */
+  right: auto !important;
+  background: rgba(40, 40, 40, 0.9);
   color: white;
-  padding: 15px 20px;
-  border-radius: 4px;
-  border-left: 4px solid #1db954;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  padding: 12px 20px;
+  border-radius: 8px;
   z-index: 1000;
+  font-size: 14px;
+  transition: transform 0.3s, opacity 0.3s;
+  transform: translateY(20px);
   opacity: 0;
-  transform: translateX(20px);
-  transition: all 0.3s ease;
   max-width: 350px;
-  width: fit-content; /* Changed from auto to fit-content */
-  display: block;
-  box-sizing: border-box;
-  text-align: left;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  border-left: 4px solid #1db954;
+}
+
+.toast-message.visible {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+/* Also modify message notifications to avoid overlapping */
+.message-notification {
+  position: fixed !important;
+  top: auto !important;
+  left: 30px !important;
+  bottom: 30px !important;
+  right: auto !important;
+  background-color: #282828 !important;
+  color: white !important;
+  padding: 15px 20px !important;
+  border-radius: 8px !important;
+  border-left: 4px solid #1db954 !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
+  z-index: 1000 !important;
+  opacity: 0 !important;
+  transform: translateY(20px) !important;
+  transition: all 0.3s ease !important;
+  max-width: 350px !important;
+  width: auto !important;
+  display: block !important;
+  height: auto !important; 
+  overflow: visible !important;
 }
 
 .message-notification.show {
-  opacity: 1;
-  transform: translateX(0);
+  opacity: 1 !important;
+  transform: translateY(0) !important;
 }
