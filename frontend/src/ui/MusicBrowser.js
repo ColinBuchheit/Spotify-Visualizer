@@ -101,6 +101,9 @@ export function createMusicBrowser(accessToken) {
         </div>
     `;
 
+    // Add to document body to make it visible
+    document.body.appendChild(container);
+
     // Get current state from central player
     const isPlaying = getIsPlaying();
     const currentTrack = getCurrentTrack();
@@ -157,8 +160,10 @@ export function createMusicBrowser(accessToken) {
 
 /**
  * Update play/pause button based on play state
+ * @param {Element} container - The browser container element
+ * @param {boolean} isPlaying - Whether audio is currently playing
  */
-export function updatePlayPauseButton(container, isPlaying) {
+function updatePlayPauseButton(container, isPlaying) {
     const playPauseButton = container.querySelector('.control-button.play-pause');
     if (playPauseButton) {
         if (isPlaying) {
@@ -180,6 +185,8 @@ export function updatePlayPauseButton(container, isPlaying) {
 
 /**
  * Update now playing display
+ * @param {Element} container - The browser container element
+ * @param {Object} track - Track data
  */
 function updateNowPlayingDisplay(container, track) {
     const nowPlayingInfo = container.querySelector('.now-playing-info');
@@ -197,6 +204,8 @@ function updateNowPlayingDisplay(container, track) {
 
 /**
  * Set up event listeners
+ * @param {Element} container - The browser container element
+ * @param {string} accessToken - Spotify access token
  */
 function setupEventListeners(container, accessToken) {
     const browserToggle = container.querySelector('.browser-toggle');
@@ -303,6 +312,7 @@ function setupEventListeners(container, accessToken) {
 
 /**
  * Handle search input with debounce
+ * @param {Event} e - Input event
  */
 let searchTimeout = null;
 function handleSearchInput(e) {
@@ -325,8 +335,9 @@ function handleSearchInput(e) {
 
 /**
  * Toggle browser visibility
+ * @param {Element} container - The browser container element
  */
-export function toggleBrowser(container) {
+function toggleBrowser(container) {
     const browserPanel = container.querySelector('.music-browser');
     if (!browserPanel) return;
     
@@ -347,8 +358,9 @@ export function toggleBrowser(container) {
 
 /**
  * Close the browser
+ * @param {Element} container - The browser container element
  */
-export function closeBrowser(container) {
+function closeBrowser(container) {
     const browserPanel = container.querySelector('.music-browser');
     if (browserPanel) {
         browserPanel.style.display = 'none';
@@ -357,6 +369,9 @@ export function closeBrowser(container) {
 
 /**
  * Switch to a different tab
+ * @param {Element} container - The browser container element
+ * @param {string} tabName - Name of the tab to switch to
+ * @param {string} accessToken - Spotify access token
  */
 function switchTab(container, tabName, accessToken) {
     // Update active tab button
@@ -382,6 +397,8 @@ function switchTab(container, tabName, accessToken) {
 
 /**
  * Perform search against Spotify API
+ * @param {Element} container - The browser container element
+ * @param {string} accessToken - Spotify access token
  */
 async function performSearch(container, accessToken) {
     const searchInput = container.querySelector('.search-input');
@@ -415,6 +432,9 @@ async function performSearch(container, accessToken) {
 
 /**
  * Display search results
+ * @param {Element} container - The browser container element
+ * @param {Object} results - Search results from API
+ * @param {string} accessToken - Spotify access token
  */
 function displaySearchResults(container, results, accessToken) {
     const searchTracksList = container.querySelector('.tab-content.search-results .track-list');
@@ -479,6 +499,9 @@ function displaySearchResults(container, results, accessToken) {
 
 /**
  * Create a track list element
+ * @param {Array} tracks - Array of track objects
+ * @param {string} accessToken - Spotify access token
+ * @returns {Element} - Track list element
  */
 function createTrackList(tracks, accessToken) {
     const trackList = document.createElement('div');
@@ -520,6 +543,10 @@ function createTrackList(tracks, accessToken) {
 
 /**
  * Create an album item element
+ * @param {Object} album - Album data
+ * @param {Element} container - The browser container element
+ * @param {string} accessToken - Spotify access token
+ * @returns {Element} - Album item element
  */
 function createAlbumItem(album, container, accessToken) {
     const albumItem = document.createElement('div');
@@ -542,6 +569,10 @@ function createAlbumItem(album, container, accessToken) {
 
 /**
  * Create an artist item element
+ * @param {Object} artist - Artist data
+ * @param {Element} container - The browser container element
+ * @param {string} accessToken - Spotify access token
+ * @returns {Element} - Artist item element
  */
 function createArtistItem(artist, container, accessToken) {
     const artistItem = document.createElement('div');
@@ -561,6 +592,8 @@ function createArtistItem(artist, container, accessToken) {
 
 /**
  * Load and display recently played tracks
+ * @param {Element} container - The browser container element
+ * @param {string} accessToken - Spotify access token
  */
 async function loadRecentTracks(container, accessToken) {
     const recentTracksList = container.querySelector('.tab-content.recent .track-list');
@@ -602,6 +635,10 @@ async function loadRecentTracks(container, accessToken) {
 
 /**
  * Load and display album tracks
+ * @param {Element} container - The browser container element
+ * @param {string} albumId - Spotify album ID
+ * @param {string} albumUri - Spotify album URI
+ * @param {string} accessToken - Spotify access token
  */
 async function loadAlbumTracks(container, albumId, albumUri, accessToken) {
     const searchTracksList = container.querySelector('.tab-content.search-results .track-list');
@@ -670,6 +707,9 @@ async function loadAlbumTracks(container, albumId, albumUri, accessToken) {
 
 /**
  * Load and display artist's top tracks
+ * @param {Element} container - The browser container element
+ * @param {string} artistId - Spotify artist ID
+ * @param {string} accessToken - Spotify access token
  */
 async function loadArtistTopTracks(container, artistId, accessToken) {
     const searchTracksList = container.querySelector('.tab-content.search-results .track-list');
@@ -721,6 +761,9 @@ async function loadArtistTopTracks(container, artistId, accessToken) {
 
 /**
  * Load and display related artists
+ * @param {Element} container - The browser container element
+ * @param {string} artistId - Spotify artist ID
+ * @param {string} accessToken - Spotify access token
  */
 async function loadRelatedArtists(container, artistId, accessToken) {
     const searchTracksList = container.querySelector('.tab-content.search-results .track-list');
@@ -762,6 +805,8 @@ async function loadRelatedArtists(container, artistId, accessToken) {
 
 /**
  * Load recommended tracks based on recent plays
+ * @param {Element} container - The browser container element
+ * @param {string} accessToken - Spotify access token
  */
 async function loadRecommendedTracks(container, accessToken) {
     const recommendedTracksList = container.querySelector('.tab-content.recommended .track-list');
@@ -812,6 +857,8 @@ async function loadRecommendedTracks(container, accessToken) {
 
 /**
  * Show error message
+ * @param {Element} container - The browser container element
+ * @param {string} message - Error message
  */
 function showError(container, message) {
     const errorEl = document.createElement('div');
@@ -837,6 +884,8 @@ function showError(container, message) {
 
 /**
  * Format milliseconds to MM:SS
+ * @param {number} ms - Time in milliseconds
+ * @returns {string} - Formatted time string
  */
 function formatDuration(ms) {
     const totalSeconds = Math.floor(ms / 1000);
@@ -844,4 +893,3 @@ function formatDuration(ms) {
     const seconds = totalSeconds % 60;
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
-
