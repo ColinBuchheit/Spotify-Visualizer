@@ -1,5 +1,7 @@
-// VolumeControl.js
+// src/ui/VolumeControl.js
 // Volume control component for Spotify player
+
+import { setVolume as setPlayerVolume } from '../spotify/spotifyPlayer.js';
 
 /**
  * Create volume control UI
@@ -133,6 +135,13 @@ export function createVolumeControl(onVolumeChange, initialVolume = 0.4) {
       // Call callback with scaled volume
       if (onVolumeChange) {
         onVolumeChange(scaledVolume);
+      }
+      
+      // Update the Spotify player volume directly
+      try {
+        setPlayerVolume(scaledVolume);
+      } catch (error) {
+        console.error('Error setting player volume:', error);
       }
     }
     

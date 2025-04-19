@@ -434,10 +434,26 @@ function setupVolumeControl() {
   }
 
   // Create volume control component
-  const volumeControl = createVolumeControl((volume) => {
+  const volumeControl = createVolumeControl(async (volume) => {
     try {
-      // Use the centralized function to set volume
-      setVolume(volume);
+      // Use the centralized function from spotifyPlayer.js to set volume
+      const player = getPlayer();
+      if (player) {
+        // Log the volume change attempt for debugging
+        console.log(`Setting volume to ${volume}`);
+        
+        // Set volume on the player directly
+        await player.setVolume(volume);
+        
+        // Save volume to localStorage for persistence
+        localStorage.setItem('spotify_visualizer_volume', volume.toString());
+        
+        // Show a brief message to confirm volume change
+        showMessage(`Volume: ${Math.round(volume * 100)}%`, 1000);
+      } else {
+        console.warn('Player not available for volume change');
+        showError('Could not adjust volume. Player not ready.');
+      }
     } catch (error) {
       console.error('Error setting volume:', error);
       showError('Could not adjust volume. Please try again.');
@@ -446,8 +462,20 @@ function setupVolumeControl() {
   
   // Add to document
   document.body.appendChild(volumeControl.element);
+  
+  // Set initial volume on player when it becomes ready
+  addEventListener('ready', async (data) => {
+    try {
+      const player = getPlayer();
+      if (player) {
+        await player.setVolume(initialVolume);
+        console.log(`Initial volume set to ${initialVolume}`);
+      }
+    } catch (error) {
+      console.error('Error setting initial volume:', error);
+    }
+  });
 }
-
 /**
  * Main animation loop
  */
